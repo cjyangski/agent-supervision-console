@@ -2,6 +2,8 @@
 
 A working interaction design prototype by Sijie (CJ) Yang, Principal Product Designer. How can an operator spot an agent's overreach, intervene, and see what happened afterward?
 
+[Open the live console](https://agent-supervision-console.netlify.app/) · [Watch the guided walkthrough](https://agent-supervision-console.netlify.app/?tour=1)
+
 ## Try the supervision loop
 
 Open `index.html` in a browser. The console uses simulated proposals and agent activity. All decisions last for the current page session.
