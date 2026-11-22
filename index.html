@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="data:," />
+<title>Agent Supervision Console</title>
+<style>
+  :root{
+    --bg:#f4f5f3; --panel:#ffffff; --panel2:#eceee9; --ink:#1c211d; --ink2:#5a635c; --line:#d8dcd4;
+    --accent:#b45309; --accent-soft:#fdf0dd; --ok:#1e7a46; --ok-soft:#e2f2e7; --warn:#b45309; --warn-soft:#fdf0dd;
+    --bad:#b3352c; --bad-soft:#fae6e3; --info:#1d5fa8; --info-soft:#e3edf8;
+    --shadow:0 1px 2px rgba(20,30,20,.06),0 8px 24px rgba(20,30,20,.05);
+    --radius:10px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#121512; --panel:#1a1e1a; --panel2:#222722; --ink:#e8ebe6; --ink2:#9aa69c; --line:#333a33;
+      --accent:#e8a04c; --accent-soft:#3a2c17; --ok:#5cc084; --ok-soft:#173325; --warn:#e8a04c; --warn-soft:#3a2c17;
+      --bad:#e87a6f; --bad-soft:#3a1f1c; --info:#7db3e8; --info-soft:#1c2c40;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+    }
+  }
+  body[data-accent="teal"]{ --accent:#0e7490; --accent-soft:#e0f2f7; }
+  @media (prefers-color-scheme: dark){ body[data-accent="teal"]{ --accent:#4cc3dd; --accent-soft:#123038; } }
+  body[data-accent="rust"]{ --accent:#9a3412; --accent-soft:#fbe9e0; }
+  @media (prefers-color-scheme: dark){ body[data-accent="rust"]{ --accent:#e88a5f; --accent-soft:#382016; } }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+  button{font:inherit;cursor:pointer}
+  button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .wrap{max-width:1440px;margin:0 auto;padding:20px 20px 48px}
+
+  /* ---------- Shell switcher ---------- */
+  .topbar{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;margin-bottom:6px}
+  .topbar h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em}
+  .topbar p{margin:0;color:var(--ink2);max-width:56ch}
+  .shellswitch{display:flex;flex-direction:column;gap:8px}
+  .shellswitch .label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);font-weight:600}
+  .shelltabs{display:flex;gap:6px;flex-wrap:wrap;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:4px}
+  .shelltabs button{border:0;background:transparent;color:var(--ink2);padding:8px 16px;border-radius:999px;font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px}
+  .shelltabs button .dot{width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.55}
+  .shelltabs button[aria-selected="true"]{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
+  .shelltabs button[aria-selected="true"] .dot{background:var(--accent);opacity:1}
+  .shellnote{font-size:13px;color:var(--ink2);margin:10px 0 18px}
+  .shellnote b{color:var(--ink)}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+  .kpi .k-label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);font-weight:600}
+  .kpi .k-value{font-size:28px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+  .kpi .k-sub{font-size:12.5px;color:var(--ink2)}
+
+  /* ---------- Grid ---------- */
+  .grid{display:grid;grid-template-columns:320px 1fr 360px;gap:14px;align-items:start}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .panel-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line)}
+  .panel-h h2{font-size:13px;letter-spacing:.1em;text-transform:uppercase;margin:0;font-weight:700}
+  .panel-h .hint{font-size:12px;color:var(--ink2)}
+  .panel-b{padding:12px 14px}
+
+  /* ---------- Agents ---------- */
+  .agent{border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--panel)}
+  .agent:last-child{margin-bottom:0}
+  .agent-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+  .agent-name{font-weight:700;font-size:14.5px}
+  .agent-task{font-size:12.5px;color:var(--ink2);margin-top:1px}
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+  .b-running{background:var(--ok-soft);color:var(--ok)}
+  .b-paused{background:var(--warn-soft);color:var(--warn)}
+  .b-killed{background:var(--bad-soft);color:var(--bad)}
+  .b-manual{background:var(--info-soft);color:var(--info)}
+  .progress{height:6px;border-radius:99px;background:var(--panel2);overflow:hidden;margin:10px 0 4px}
+  .progress i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .6s ease}
+  .progress-meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink2)}
+  .agent-ctl{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  .btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:6px 11px;font-size:12.5px;font-weight:600}
+  .btn:hover{border-color:var(--ink2)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  @media (prefers-color-scheme: dark){ .btn.primary{color:#141414} }
+  .btn.danger{color:var(--bad);border-color:var(--bad)}
+  .btn.small{padding:4px 9px;font-size:12px}
+
+  /* ---------- Queue ---------- */
+  .queue-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .queue-tools select{font:inherit;font-size:13px;padding:6px 8px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+  .action{border:1px solid var(--line);border-left:4px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px}
+  .action.risk-high{border-left-color:var(--bad)}
+  .action.risk-med{border-left-color:var(--warn)}
+  .action.risk-low{border-left-color:var(--ok)}
+  .action-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .action-title{font-weight:700;font-size:15px}
+  .action-by{font-size:12.5px;color:var(--ink2)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+  .chip{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--panel2);color:var(--ink2)}
+  .chip.risk-high{background:var(--bad-soft);color:var(--bad)}
+  .chip.risk-med{background:var(--warn-soft);color:var(--warn)}
+  .chip.risk-low{background:var(--ok-soft);color:var(--ok)}
+  .chip.conf-low{background:var(--bad-soft);color:var(--bad)}
+  .action-desc{font-size:13.5px;color:var(--ink);margin:4px 0 8px}
+  .action-why{font-size:12.5px;color:var(--ink2);background:var(--panel2);border-radius:7px;padding:8px 10px;margin-bottom:10px}
+  .action-why b{color:var(--ink)}
+  .action-btns{display:flex;gap:6px;flex-wrap:wrap}
+  .flag{font-size:12px;font-weight:600;color:var(--bad);background:var(--bad-soft);border-radius:7px;padding:7px 10px;margin-bottom:10px}
+  .empty{border:1px dashed var(--line);border-radius:8px;padding:26px 16px;text-align:center;color:var(--ink2);font-size:13.5px}
+  .empty b{color:var(--ink);display:block;font-size:15px;margin-bottom:4px}
+
+  /* edit form */
+  .editbox{margin-top:12px;border-top:1px dashed var(--line);padding-top:12px;display:none}
+  .editbox.open{display:block}
+  .editbox label{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin:8px 0 4px}
+  .editbox input,.editbox textarea,.editbox select{width:100%;font:inherit;font-size:13.5px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink)}
+  .editbox textarea{min-height:64px;resize:vertical}
+
+  /* ---------- Feed & audit ---------- */
+  .feed{max-height:300px;overflow:auto}
+  .feed-item{display:flex;gap:10px;padding:8px 2px;border-bottom:1px solid var(--line);font-size:13px}
+  .feed-item:last-child{border-bottom:0}
+  .feed-time{font-size:11.5px;color:var(--ink2);white-space:nowrap;padding-top:2px;min-width:82px}
+  .feed-item .who{font-weight:600}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
+  .live-dot.off{background:var(--bad)}
+  .audit{max-height:420px;overflow:auto}
+  .audit-item{padding:9px 2px;border-bottom:1px solid var(--line);font-size:13px}
+  .audit-item:last-child{border-bottom:0}
+  .audit-item .a-head{display:flex;justify-content:space-between;gap:8px}
+  .audit-item .a-act{font-weight:700}
+  .audit-item .a-time{font-size:11.5px;color:var(--ink2);white-space:nowrap}
+  .audit-item .a-detail{color:var(--ink2);font-size:12.5px;margin-top:1px}
+  .verdict{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px}
+  .v-approved{background:var(--ok-soft);color:var(--ok)}
+  .v-rejected{background:var(--bad-soft);color:var(--bad)}
+  .v-edited{background:var(--info-soft);color:var(--info)}
+  .v-control{background:var(--warn-soft);color:var(--warn)}
+  .v-system{background:var(--panel2);color:var(--ink2)}
+  .v-undone{background:var(--panel2);color:var(--ink2);text-decoration:line-through}
+  .stack{display:flex;flex-direction:column;gap:14px}
+
+  .toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,80px);background:var(--ink);color:var(--bg);padding:11px 18px;border-radius:999px;font-size:13.5px;font-weight:600;box-shadow:var(--shadow);transition:transform .3s ease;z-index:50;max-width:92vw;text-align:center}
+  .toast.show{transform:translate(-50%,0)}
+
+  footer{margin-top:22px;color:var(--ink2);font-size:12.5px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+  @media (max-width:1100px){
+    .grid{grid-template-columns:1fr 1fr}
+    .stack{grid-column:1/-1}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+  }
+  @media (max-width:680px){
+    .grid{grid-template-columns:1fr}
+    .wrap{padding:14px 12px 40px}
+    .topbar h1{font-size:22px}
+    .shelltabs{width:100%}
+    .shelltabs button{flex:1;justify-content:center}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .progress i,.toast{transition:none}
+  }
+  #tour{margin:0 0 18px;padding:16px 20px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--radius);background:var(--panel)}
+  #tour p{margin:4px 0 10px;max-width:76ch}
+  #tour button{margin-right:6px}
+  .tour-focus{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body data-accent="amber">
+<div class="wrap">
+
+  <div class="topbar">
+    <div>
+      <h1>Agent Supervision Console</h1>
+      <p>Agents propose. You decide. Every decision, override, and recovery is written to an append-only audit log.</p>
+    </div>
+    <div class="shellswitch">
+      <span class="label" id="shellLabel">Domain shell</span>
+      <div class="shelltabs" role="tablist" aria-labelledby="shellLabel" id="shellTabs"></div>
+    </div>
+  </div>
+  <p class="shellnote" id="shellNote"></p>
+
+  <aside id="tour" hidden aria-label="Guided walkthrough">
+    <strong>Guided walkthrough</strong>
+    <p id="tourCaption" aria-live="polite">Review a proposed export, check its scope, and follow the decision into the audit log.</p>
+    <button class="btn small" id="tourToggle">Play tour</button>
+    <button class="btn small" id="tourExit">Explore on my own</button>
+  </aside>
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <!-- Agents -->
+    <section class="panel" aria-label="Agents">
+      <div class="panel-h"><h2>Agents</h2><span class="hint" id="agentCount"></span></div>
+      <div class="panel-b" id="agentList"></div>
+    </section>
+
+    <!-- Queue -->
+    <section class="panel" aria-label="Approval queue">
+      <div class="panel-h">
+        <h2>Approval queue</h2>
+        <div class="queue-tools">
+          <label class="hint" for="riskFilter">Risk</label>
+          <select id="riskFilter">
+            <option value="all">All</option>
+            <option value="high">High only</option>
+            <option value="med">Medium+</option>
+            <option value="low">Low only</option>
+          </select>
+          <button class="btn small" id="undoBtn" disabled>Undo last decision</button>
+        </div>
+      </div>
+      <div class="panel-b" id="queueList"></div>
+    </section>
+
+    <!-- Feed + Audit -->
+    <div class="stack">
+      <section class="panel" aria-label="Live agent feed">
+        <div class="panel-h">
+          <h2>Live feed</h2>
+          <span class="hint"><span class="live-dot" id="liveDot"></span> <span id="liveState">Streaming</span> · <button class="btn small" id="streamBtn">Pause stream</button></span>
+        </div>
+        <div class="panel-b feed" id="feedList"></div>
+      </section>
+
+      <section class="panel" aria-label="Audit log">
+        <div class="panel-h">
+          <h2>Audit log</h2>
+          <span class="hint">Append-only · <span id="auditCount">0</span> entries</span>
+        </div>
+        <div class="panel-b audit" id="auditList"></div>
+      </section>
+    </div>
+  </div>
+
+  <footer>
+    <span>Shells are data modules — the console engine (queue, controls, audit) never changes when a shell swaps.</span>
+    <span class="mono" id="clock"></span>
+  </footer>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =====================================================================
+   SHELLS — each shell is a self-contained data module.
+   To add a new domain: copy one object, change the data, done.
+   The engine below reads only this shape.
+===================================================================== */
+var SHELLS = {
+
+  compliance: {
+    id: "compliance", name: "Compliance", accent: "amber",
+    tagline: "Vendor & access governance",
+    note: "<b>Compliance shell.</b> Agents review vendor risk, access grants, and data handling. The deliberately risky item — a low-confidence, high-blast-radius production data export — is seeded so the judgment surfaces have something to bite on.",
+    agents: [
+      { id:"a1", name:"Atlas", role:"Vendor risk analyst", task:"Q4 vendor risk sweep — 42 vendors", progress:68 },
+      { id:"a2", name:"Beacon", role:"Access reviewer", task:"Dormant access review — engineering org", progress:34 },
+      { id:"a3", name:"Cipher", role:"Data handling auditor", task:"PII handling audit — support tooling", progress:81 }
+    ],
+    actions: [
+      { id:"c1", agent:"Atlas", title:"Renew vendor contract — Northwind Analytics", desc:"Auto-renew the analytics contract for 12 months at the current rate ($48k/yr). Usage is up 22% quarter over quarter; terms unchanged.", why:"Contract expires in 9 days. No security incidents, SOC 2 Type II current, data processing addendum signed.", risk:"low", blast:"Single vendor", confidence:94 },
+      { id:"c2", agent:"Beacon", title:"Revoke 14 dormant access grants", desc:"Revoke production database access for 14 accounts inactive for 90+ days. Owners notified twice with no response.", why:"Dormant privileged access is the top finding in last quarter's internal audit. Revocation is reversible within 30 days.", risk:"med", blast:"14 accounts · prod DB", confidence:88 },
+      { id:"c3", agent:"Cipher", title:"Export full customer PII dataset to external auditor", desc:"Export names, emails, billing addresses, and support histories for 118,000 customers to an external audit firm's file share, ahead of the scheduled review.", why:"Requested by the audit firm. However: the engagement letter scopes the review to sampled records (n=500), not the full dataset — and the destination share has no expiry set.", risk:"high", blast:"118,000 customer records", confidence:41, flag:"Scope mismatch: engagement letter covers a 500-record sample. Full export exceeds the agreed scope and the destination has no retention limit." },
+      { id:"c4", agent:"Atlas", title:"Flag vendor for enhanced due diligence — Helios Cloud", desc:"Move Helios Cloud to enhanced due diligence after a sub-processor change was disclosed without the contractually required 30-day notice.", why:"Sub-processor change disclosed 4 days after it took effect. No data incident reported, but the notice breach is documented.", risk:"med", blast:"1 vendor · review tier", confidence:76 }
+    ],
+    feedPool: [
+      ["Atlas","scanned vendor 31 of 42 — no new findings"],
+      ["Beacon","matched 3 dormant accounts to departed contractors"],
+      ["Cipher","sampling support tickets for PII handling patterns"],
+      ["Atlas","pulled updated SOC 2 report for vendor 32"],
+      ["Beacon","queued access diff for engineering managers"],
+      ["Cipher","verified encryption at rest on 6 of 9 support tools"]
+    ]
+  },
+
+  robot: {
+    id: "robot", name: "Robot Inspection", accent: "teal",
+    tagline: "Warehouse fleet · physical-world approvals",
+    note: "<b>Robot-inspection shell.</b> Same engine, physical stakes: inspection robots propose route changes, part replacements, and area access. A human approves before anything moves or opens.",
+    agents: [
+      { id:"r1", name:"Rover-3", role:"Aisle inspection unit", task:"Cold-storage aisle sweep — zones C1–C6", progress:52 },
+      { id:"r2", name:"Rover-7", role:"Dock inspection unit", task:"Loading dock sensor check — bays 1–8", progress:77 },
+      { id:"r3", name:"Arm-2", role:"Pick-station inspector", task:"Gripper wear inspection — stations 4–9", progress:23 }
+    ],
+    actions: [
+      { id:"rb1", agent:"Rover-3", title:"Re-route through aisle C4 to finish sweep early", desc:"Aisle C4 is marked staff-only during shift change (next 25 min). Re-routing saves ~9 minutes but crosses an active forklift lane.", why:"Route planner optimised for time only. Shift-change window and forklift lane were not in the planner's constraints.", risk:"high", blast:"1 forklift lane · staff area", confidence:52, flag:"Physical safety: route crosses an active forklift lane during shift change. Planner did not have the staffing constraint." },
+      { id:"rb2", agent:"Arm-2", title:"Replace gripper pads on station 6", desc:"Wear sensor reads 82% on station 6 gripper pads. Swap in a new set from stores; station down ~6 minutes.", why:"Wear threshold for replacement is 80%. Two mis-picks logged at this station in the last shift, consistent with pad wear.", risk:"low", blast:"1 station · 6 min downtime", confidence:91 },
+      { id:"rb3", agent:"Rover-7", title:"Open dock bay 5 shutter for ventilation check", desc:"Bay 5 temperature sensor reads 4°C above the dock average. Open the shutter for 3 minutes to check for a blocked vent.", why:"Single sensor reading; the adjacent bay sensor reads normal. Shutter opening requires a spotter present per site rules.", risk:"med", blast:"1 dock bay · 3 min", confidence:63 },
+      { id:"rb4", agent:"Rover-3", title:"Escalate condensation reading in zone C2", desc:"Repeated condensation on the C2 camera lens and floor sensor over 40 minutes. Recommend a human walk-through before the next pallet move.", why:"Three corroborating readings. Condensation near cold-storage racking can mean a seal failure — worth eyes before pallets move.", risk:"med", blast:"Zone C2 · 1 aisle", confidence:84 }
+    ],
+    feedPool: [
+      ["Rover-3","completed zone C3 sweep — 0 defects"],
+      ["Rover-7","dock bay 2 sensor nominal"],
+      ["Arm-2","station 5 gripper torque within range"],
+      ["Rover-3","battery 71% — returning to dock after zone C6"],
+      ["Rover-7","photographed bay 4 seal for review"],
+      ["Arm-2","queued station 7 for tomorrow's sweep"]
+    ]
+  },
+
+  research: {
+    id: "research", name: "Research Ops", accent: "rust",
+    tagline: "Study & outreach governance — a third shell, added by data alone",
+    note: "<b>Research-ops shell.</b> Included to prove the point: this shell was added as pure data — same queue, same controls, same audit log, zero engine changes.",
+    agents: [
+      { id:"s1", name:"Scout", role:"Recruiting coordinator", task:"Diary study recruitment — round 3", progress:44 },
+      { id:"s2", name:"Ledger", role:"Incentive manager", task:"Incentive payouts — September cohort", progress:88 },
+      { id:"s3", name:"Verbatim", role:"Synthesis assistant", task:"Tagging interview transcripts — batch 12", progress:61 }
+    ],
+    actions: [
+      { id:"s-a1", agent:"Scout", title:"Send reminder to 26 diary-study participants", desc:"Day-3 reminder to participants who haven't submitted today's entry. Standard template, no incentive mention.", why:"Submission rate drops 30% without a day-3 nudge, based on rounds 1–2.", risk:"low", blast:"26 participants", confidence:93 },
+      { id:"s-a2", agent:"Ledger", title:"Release $4,850 in incentive payouts", desc:"Pay 37 participants who completed the September cohort. Amounts verified against completion records.", why:"All 37 completion records match the study log. Two amounts were corrected after a duplicate-entry fix.", risk:"med", blast:"37 payouts · $4,850", confidence:86 },
+      { id:"s-a3", agent:"Verbatim", title:"Publish anonymised quote bank externally", desc:"Publish 240 participant quotes to the public research repository, with names removed.", why:"Names are stripped, but 11 quotes mention employer + role + city together — a re-identification risk the anonymisation pass didn't catch.", risk:"high", blast:"240 quotes · public", confidence:47, flag:"Re-identification risk: 11 quotes combine employer, role, and city. Anonymisation removed names only." },
+      { id:"s-a4", agent:"Scout", title:"Extend recruitment to a second panel provider", desc:"Open round-3 recruitment to a second panel to fill the 45–60 age bracket, currently at 40% of target.", why:"Primary panel has plateaued for 5 days. Second provider is already under an approved MSA.", risk:"med", blast:"1 panel · ~300 invites", confidence:79 }
+    ],
+    feedPool: [
+      ["Scout","screened 12 new applicants — 5 eligible"],
+      ["Ledger","verified payout batch 9 of 11"],
+      ["Verbatim","tagged 40 transcripts in batch 12"],
+      ["Scout","45–60 bracket now at 44% of target"],
+      ["Ledger","flagged 1 duplicate completion record"],
+      ["Verbatim","theme 'onboarding friction' up 18% this batch"]
+    ]
+  }
+};
+
+/* =====================================================================
+   ENGINE — shell-agnostic. State, rendering, controls, audit.
+===================================================================== */
+var state = {
+  shellId: "compliance",
+  agents: {},        // per shell: { agentId: {status, progress} }
+  decided: {},       // per shell: { actionId: true }
+  audit: [],         // global, append-only
+  feed: [],          // current shell feed items
+  lastDecision: null,
+  streamOn: true,
+  feedIdx: 0,
+  seq: 0
+};
+
+function now(){ return new Date(); }
+function ts(d){ return d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit"}); }
+function shell(){ return SHELLS[state.shellId]; }
+function agentState(sid, a){
+  if(!state.agents[sid]) state.agents[sid] = {};
+  if(!state.agents[sid][a.id]) state.agents[sid][a.id] = { status:"running", progress:a.progress };
+  return state.agents[sid][a.id];
+}
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+function logAudit(verdict, label, detail){
+  state.seq++;
+  state.audit.unshift({ n: state.seq, time: ts(now()), shell: shell().name, verdict: verdict, label: label, detail: detail });
+  renderAudit();
+}
+
+var toastTimer = null;
+function toast(msg){
+  var t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 3400);
+}
+
+/* ---------- Rendering ---------- */
+function renderShellTabs(){
+  var tabs = document.getElementById("shellTabs");
+  tabs.innerHTML = Object.keys(SHELLS).map(function(k){
+    var s = SHELLS[k];
+    return '<button role="tab" data-shell="'+s.id+'" aria-selected="'+(s.id===state.shellId)+'"><span class="dot"></span>'+esc(s.name)+'</button>';
+  }).join("");
+  var btns = tabs.querySelectorAll("button");
+  for(var i=0;i<btns.length;i++){
+    btns[i].addEventListener("click", function(){ switchShell(this.getAttribute("data-shell")); });
+  }
+  document.getElementById("shellNote").innerHTML = shell().note;
+  document.body.setAttribute("data-accent", shell().accent);
+}
+
+function switchShell(id){
+  if(id === state.shellId) return;
+  state.shellId = id;
+  state.feed = []; state.feedIdx = 0;
+  renderShellTabs(); renderAgents(); renderQueue(); renderKpis(); renderFeed();
+  logAudit("system", "Shell swapped", "Console switched to the " + shell().name + " shell (" + shell().tagline + "). Queue, controls, and audit engine unchanged.");
+  toast("Shell swapped: " + shell().name + " — same engine, new domain data.");
+  seedFeed(2);
+}
+
+function pendingActions(){
+  var dec = state.decided[state.shellId] || {};
+  return shell().actions.filter(function(a){ return !dec[a.id]; });
+}
+
+function renderKpis(){
+  var s = shell();
+  var pend = pendingActions();
+  var high = pend.filter(function(a){ return a.risk==="high"; }).length;
+  var running = s.agents.filter(function(a){ return agentState(s.id,a).status==="running"; }).length;
+  var decidedCount = Object.keys(state.decided[state.shellId]||{}).length;
+  var kpis = [
+    { label:"Pending approvals", value: pend.length, sub: high + " high-risk waiting" },
+    { label:"Agents running", value: running + " / " + s.agents.length, sub: "supervised in this shell" },
+    { label:"Decisions this session", value: decidedCount, sub: "across the queue" },
+    { label:"Audit entries", value: state.audit.length, sub: "append-only, all shells" }
+  ];
+  document.getElementById("kpis").innerHTML = kpis.map(function(k){
+    return '<div class="kpi"><div class="k-label">'+k.label+'</div><div class="k-value">'+k.value+'</div><div class="k-sub">'+k.sub+'</div></div>';
+  }).join("");
+}
+
+function statusBadge(st){
+  var map = { running:["b-running","Running"], paused:["b-paused","Paused"], killed:["b-killed","Killed"], manual:["b-manual","Manual control"] };
+  var m = map[st]; return '<span class="badge '+m[0]+'">'+m[1]+'</span>';
+}
+
+function renderAgents(){
+  var s = shell();
+  document.getElementById("agentCount").textContent = s.agents.length + " supervised";
+  document.getElementById("agentList").innerHTML = s.agents.map(function(a){
+    var st = agentState(s.id, a);
+    var dis = st.status==="killed";
+    return '<div class="agent">'
+      + '<div class="agent-top"><div><div class="agent-name">'+esc(a.name)+' <span class="mono" style="font-weight:400;color:var(--ink2);font-size:12px">'+esc(a.role)+'</span></div>'
+      + '<div class="agent-task">'+esc(a.task)+'</div></div>' + statusBadge(st.status) + '</div>'
+      + '<div class="progress"><i style="width:'+st.progress+'%"></i></div>'
+      + '<div class="progress-meta"><span>Task progress</span><span class="mono">'+st.progress+'%</span></div>'
+      + '<div class="agent-ctl">'
+      +   (st.status==="running" ? '<button class="btn small" data-ctl="pause" data-agent="'+a.id+'">Pause</button>' : '')
+      +   (st.status==="paused" ? '<button class="btn small" data-ctl="resume" data-agent="'+a.id+'">Resume</button>' : '')
+      +   (st.status!=="manual" && !dis ? '<button class="btn small" data-ctl="takeover" data-agent="'+a.id+'">Take over</button>' : '')
+      +   (st.status==="manual" ? '<button class="btn small" data-ctl="release" data-agent="'+a.id+'">Release control</button>' : '')
+      +   (!dis ? '<button class="btn small danger" data-ctl="kill" data-agent="'+a.id+'">Kill</button>' : '<button class="btn small" data-ctl="restart" data-agent="'+a.id+'">Restart</button>')
+      + '</div></div>';
+  }).join("");
+  var btns = document.querySelectorAll("[data-ctl]");
+  for(var i=0;i<btns.length;i++) btns[i].addEventListener("click", function(){ agentControl(this.getAttribute("data-agent"), this.getAttribute("data-ctl")); });
+}
+
+function agentControl(agentId, ctl){
+  var s = shell();
+  var a = s.agents.filter(function(x){ return x.id===agentId; })[0];
+  var st = agentState(s.id, a);
+  var label = { pause:"Paused", resume:"Resumed", kill:"Killed", takeover:"Took manual control of", release:"Released control of", restart:"Restarted" }[ctl];
+  st.status = { pause:"paused", resume:"running", kill:"killed", takeover:"manual", release:"running", restart:"running" }[ctl];
+  logAudit("control", label + " " + a.name, a.task + " · progress held at " + st.progress + "%.");
+  toast(label + " " + a.name + ". Logged to audit.");
+  renderAgents(); renderKpis();
+}
+
+function riskLabel(r){ return r==="high" ? "High risk" : r==="med" ? "Medium risk" : "Low risk"; }
+
+function renderQueue(){
+  var filter = document.getElementById("riskFilter").value;
+  var list = pendingActions().filter(function(a){
+    if(filter==="all") return true;
+    if(filter==="high") return a.risk==="high";
+    if(filter==="med") return a.risk!=="low";
+    return a.risk==="low";
+  });
+  var el = document.getElementById("queueList");
+  if(!list.length){
+    el.innerHTML = '<div class="empty"><b>Queue clear</b>Nothing waiting on you in the ' + esc(shell().name) + ' shell under this filter. New proposals arrive via the live feed.</div>';
+    return;
+  }
+  el.innerHTML = list.map(function(a){
+    var confCls = a.confidence < 60 ? " conf-low" : "";
+    var confTxt = a.confidence < 60 ? "Low confidence" : "Confidence";
+    return '<article class="action risk-'+a.risk+'">'
+      + '<div class="action-head"><div><div class="action-title">'+esc(a.title)+'</div>'
+      + '<div class="action-by">Proposed by <b>'+esc(a.agent)+'</b> · ' + esc(shell().name) + ' shell</div></div></div>'
+      + '<div class="chips"><span class="chip risk-'+a.risk+'">'+riskLabel(a.risk)+'</span>'
+      + '<span class="chip'+confCls+'">'+confTxt+' '+a.confidence+'%</span>'
+      + '<span class="chip">Blast radius: '+esc(a.blast)+'</span></div>'
+      + (a.flag ? '<div class="flag">Flagged for review — ' + esc(a.flag) + '</div>' : '')
+      + '<p class="action-desc">'+esc(a.desc)+'</p>'
+      + '<div class="action-why"><b>Why the agent proposes this:</b> '+esc(a.why)+'</div>'
+      + '<div class="action-btns">'
+      +   '<button class="btn primary" data-dec="approve" data-id="'+a.id+'">Approve</button>'
+      +   '<button class="btn" data-dec="edit" data-id="'+a.id+'">Edit &amp; approve</button>'
+      +   '<button class="btn danger" data-dec="reject" data-id="'+a.id+'">Reject</button>'
+      + '</div>'
+      + '<div class="editbox" id="edit-'+a.id+'">'
+      +   '<label for="et-'+a.id+'">Edited action</label><input id="et-'+a.id+'" value="'+esc(a.title)+'">'
+      +   '<label for="ed-'+a.id+'">Edited scope / instructions</label><textarea id="ed-'+a.id+'">'+esc(a.desc)+'</textarea>'
+      +   '<label for="en-'+a.id+'">Note for the audit log (why the edit)</label><input id="en-'+a.id+'" placeholder="e.g. Scoped down to the agreed sample size">'
+      +   '<div class="action-btns" style="margin-top:10px"><button class="btn primary" data-dec="saveedit" data-id="'+a.id+'">Save edit &amp; approve</button>'
+      +   '<button class="btn" data-dec="canceledit" data-id="'+a.id+'">Cancel</button></div>'
+      + '</div></article>';
+  }).join("");
+  var btns = el.querySelectorAll("[data-dec]");
+  for(var i=0;i<btns.length;i++) btns[i].addEventListener("click", function(){ decide(this.getAttribute("data-id"), this.getAttribute("data-dec")); });
+}
+
+function decide(actionId, kind){
+  var s = shell();
+  var a = s.actions.filter(function(x){ return x.id===actionId; })[0];
+  if(kind==="edit"){ document.getElementById("edit-"+actionId).classList.add("open"); return; }
+  if(kind==="canceledit"){ document.getElementById("edit-"+actionId).classList.remove("open"); return; }
+  if(!state.decided[state.shellId]) state.decided[state.shellId] = {};
+  state.decided[state.shellId][actionId] = true;
+  var verdict, label, detail;
+  if(kind==="approve"){ verdict="approved"; label="Approved"; detail=a.title; }
+  if(kind==="reject"){ verdict="rejected"; label="Rejected"; detail=a.title + " — agent notified, no execution."; }
+  if(kind==="saveedit"){
+    var nt = document.getElementById("et-"+actionId).value;
+    var scope = document.getElementById("ed-"+actionId).value;
+    var note = document.getElementById("en-"+actionId).value || "No note given";
+    verdict="edited"; label="Edited & approved";
+    detail="Original: “" + a.title + "” → Edited: “" + nt + "”. Original scope: “" + a.desc + "”. Approved scope: “" + scope + "”. Note: " + note;
+  }
+  state.lastDecision = { shellId: state.shellId, actionId: actionId, title: a.title };
+  document.getElementById("undoBtn").disabled = false;
+  logAudit(verdict, label, detail);
+  toast(label + ": " + a.title);
+  renderQueue(); renderKpis();
+}
+
+document.getElementById("undoBtn").addEventListener("click", function(){
+  var d = state.lastDecision; if(!d) return;
+  delete state.decided[d.shellId][d.actionId];
+  state.lastDecision = null;
+  this.disabled = true;
+  state.seq++;
+  state.audit.unshift({ n: state.seq, time: ts(now()), shell: SHELLS[d.shellId].name, verdict:"system", label:"Decision undone", detail:"“" + d.title + "” returned to the approval queue. The original decision entry remains in this log — undo appends, it never erases." });
+  renderAudit();
+  if(d.shellId === state.shellId){ renderQueue(); }
+  renderKpis();
+  toast("Decision undone — action is back in the queue.");
+});
+
+document.getElementById("riskFilter").addEventListener("change", renderQueue);
+
+/* ---------- Feed ---------- */
+function pushFeed(who, text){
+  state.feed.unshift({ time: ts(now()), who: who, text: text });
+  if(state.feed.length > 30) state.feed.pop();
+  renderFeed();
+}
+function renderFeed(){
+  var el = document.getElementById("feedList");
+  if(!state.feed.length){ el.innerHTML = '<div class="empty">Feed warming up…</div>'; return; }
+  el.innerHTML = state.feed.map(function(f){
+    return '<div class="feed-item"><span class="feed-time mono">'+f.time+'</span><span><span class="who">'+esc(f.who)+'</span> — '+esc(f.text)+'</span></div>';
+  }).join("");
+}
+function seedFeed(n){
+  var pool = shell().feedPool;
+  for(var i=0;i<n;i++){ var p = pool[state.feedIdx % pool.length]; state.feedIdx++; pushFeed(p[0], p[1]); }
+}
+setInterval(function(){
+  if(!state.streamOn) return;
+  var s = shell();
+  var pool = s.feedPool;
+  var p = pool[state.feedIdx % pool.length]; state.feedIdx++;
+  pushFeed(p[0], p[1]);
+  // advance a random running agent
+  var running = s.agents.filter(function(a){ return agentState(s.id,a).status==="running"; });
+  if(running.length){
+    var a = running[Math.floor(Math.random()*running.length)];
+    var st = agentState(s.id, a);
+    st.progress = Math.min(99, st.progress + Math.floor(Math.random()*4)+1);
+    renderAgents();
+  }
+}, 4000);
+
+document.getElementById("streamBtn").addEventListener("click", function(){
+  state.streamOn = !state.streamOn;
+  this.textContent = state.streamOn ? "Pause stream" : "Resume stream";
+  document.getElementById("liveState").textContent = state.streamOn ? "Streaming" : "Paused";
+  document.getElementById("liveDot").classList.toggle("off", !state.streamOn);
+});
+
+/* ---------- Audit ---------- */
+function verdictClass(v){
+  return { approved:"v-approved", rejected:"v-rejected", edited:"v-edited", control:"v-control", system:"v-system" }[v] || "v-system";
+}
+function verdictText(v){
+  return { approved:"APPROVED", rejected:"REJECTED", edited:"EDITED + APPROVED", control:"CONTROL", system:"SYSTEM" }[v] || v.toUpperCase();
+}
+function renderAudit(){
+  document.getElementById("auditCount").textContent = state.audit.length;
+  var el = document.getElementById("auditList");
+  if(!state.audit.length){ el.innerHTML = '<div class="empty">No entries yet. Decisions and agent controls land here.</div>'; return; }
+  el.innerHTML = state.audit.map(function(e){
+    return '<div class="audit-item"><div class="a-head"><span class="a-act">#'+e.n+' '+esc(e.label)+'</span><span class="a-time mono">'+e.time+'</span></div>'
+      + '<div class="a-detail">'+esc(e.detail)+'</div>'
+      + '<div style="margin-top:4px"><span class="verdict '+verdictClass(e.verdict)+'">'+verdictText(e.verdict)+'</span> <span class="chip">'+esc(e.shell)+'</span></div></div>';
+  }).join("");
+  renderKpis();
+}
+
+/* ---------- Clock ---------- */
+setInterval(function(){ document.getElementById("clock").textContent = ts(now()); }, 1000);
+
+/* ---------- Init ---------- */
+renderShellTabs(); renderAgents(); renderQueue(); renderAudit(); renderKpis();
+seedFeed(3);
+logAudit("system", "Console opened", "Compliance shell loaded by default. 3 agents supervised, 4 actions awaiting review.");
+
+// This optional entry point runs only in a fresh guided session.
+if (new URLSearchParams(location.search).get("tour") === "1") {
+  const tour = document.getElementById("tour");
+  const caption = document.getElementById("tourCaption");
+  const toggle = document.getElementById("tourToggle");
+  const filter = document.getElementById("riskFilter");
+  tour.hidden = false;
+  let step = 0;
+  let timer;
+  let playing = false;
+  let focus;
+  function highlight(element) {
+    if (focus) focus.classList.remove("tour-focus");
+    focus = element;
+    if (focus) focus.classList.add("tour-focus");
+  }
+  const scenes = [
+    function showProposal() {
+      filter.value = "high";
+      renderQueue();
+      highlight(document.querySelector(".action.risk-high"));
+      caption.textContent = "Cipher proposes exporting 118,000 customer records. The risk filter isolates the request for review.";
+    },
+    function inspectScope() {
+      highlight(document.querySelector(".action.risk-high .flag"));
+      caption.textContent = "The engagement covers a sample of 500 records. The proposed export exceeds the agreed scope.";
+    },
+    function rejectExport() {
+      decide("c3", "reject");
+      highlight(document.querySelector("#auditList .audit-item"));
+      caption.textContent = "The operator rejects the request. The audit log records the decision and the export does not run.";
+    },
+    function finish() {
+      filter.value = "all";
+      renderQueue();
+      highlight(null);
+      caption.textContent = "Your turn. Approve the Northwind renewal, then undo it to see how the log preserves both decisions.";
+    }
+  ];
+  function pauseTour() {
+    clearTimeout(timer);
+    playing = false;
+    toggle.textContent = step ? "Resume tour" : "Play tour";
+  }
+  function advance() {
+    scenes[step++]();
+    if (step === scenes.length) {
+      playing = false;
+      toggle.textContent = "Restart guided session";
+    } else {
+      timer = setTimeout(advance, 7000);
+    }
+  }
+  function playTour() {
+    playing = true;
+    toggle.textContent = "Pause tour";
+    if (step) timer = setTimeout(advance, 3500);
+    else advance();
+  }
+  function exitTour() {
+    pauseTour();
+    highlight(null);
+    tour.hidden = true;
+  }
+  toggle.addEventListener("click", () => {
+    if (step === scenes.length) location.reload();
+    else if (playing) pauseTour();
+    else playTour();
+  });
+  document.getElementById("tourExit").addEventListener("click", exitTour);
+  document.addEventListener("click", e => {
+    if (!tour.hidden && !tour.contains(e.target) && e.target.closest("button,select,input,textarea,a")) exitTour();
+  }, true);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && playing) pauseTour();
+  });
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches && !document.hidden) playTour();
+}
+</script>
+</body>
+</html>
